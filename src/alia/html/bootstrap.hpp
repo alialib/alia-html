@@ -5,6 +5,64 @@
 
 namespace alia { namespace html { namespace bootstrap {
 
+// BREADCRUMB
+
+struct breadcrumb
+{
+    scoped_element nav;
+    scoped_element ol;
+
+    breadcrumb()
+    {
+    }
+    breadcrumb(html::context ctx)
+    {
+        this->begin(ctx);
+    }
+    ~breadcrumb()
+    {
+        this->end();
+    }
+
+    breadcrumb&
+    begin(html::context ctx)
+    {
+        this->nav.begin(ctx, "nav").attr("aria-label", "breadcrumb");
+        this->ol.begin(ctx, "ol").class_("breadcrumb");
+        return *this;
+    }
+    void
+    end()
+    {
+        this->ol.end();
+        this->nav.end();
+    }
+
+    template<class Link>
+    element_handle
+    item(Link&& link)
+    {
+        return element(this->nav.context(), "li")
+            .class_("breadcrumb-item")
+            .children([&] { std::forward<Link>(link)(); });
+    }
+
+    element_handle
+    active_item()
+    {
+        return element(this->nav.context(), "li")
+            .classes("breadcrumb-item active")
+            .attr("aria-current", "page");
+    }
+
+    template<class Label>
+    element_handle
+    active_item(Label label)
+    {
+        return active_item().text(label);
+    }
+};
+
 // BUTTONS
 
 // button - Note that for this overload you MUST also add a style class (e.g.,
@@ -79,6 +137,62 @@ link_button(Args&&... args)
     return button(std::forward<Args>(args)...).class_("btn-link");
 }
 
+template<class... Args>
+element_handle
+outline_primary_button(Args&&... args)
+{
+    return button(std::forward<Args>(args)...).class_("btn-outline-primary");
+}
+
+template<class... Args>
+element_handle
+outline_secondary_button(Args&&... args)
+{
+    return button(std::forward<Args>(args)...).class_("btn-outline-secondary");
+}
+
+template<class... Args>
+element_handle
+outline_success_button(Args&&... args)
+{
+    return button(std::forward<Args>(args)...).class_("btn-outline-success");
+}
+
+template<class... Args>
+element_handle
+outline_danger_button(Args&&... args)
+{
+    return button(std::forward<Args>(args)...).class_("btn-outline-danger");
+}
+
+template<class... Args>
+element_handle
+outline_warning_button(Args&&... args)
+{
+    return button(std::forward<Args>(args)...).class_("btn-outline-warning");
+}
+
+template<class... Args>
+element_handle
+outline_info_button(Args&&... args)
+{
+    return button(std::forward<Args>(args)...).class_("btn-outline-info");
+}
+
+template<class... Args>
+element_handle
+outline_light_button(Args&&... args)
+{
+    return button(std::forward<Args>(args)...).class_("btn-outline-light");
+}
+
+template<class... Args>
+element_handle
+outline_dark_button(Args&&... args)
+{
+    return button(std::forward<Args>(args)...).class_("btn-outline-dark");
+}
+
 // CHECKBOXES
 
 namespace detail {
@@ -92,7 +206,7 @@ checkbox(html::context ctx, duplex<bool> value, Label label)
     return detail::checkbox(ctx, value, signalize(label));
 }
 
-// COMMON
+// MISCELLANEOUS
 
 // Do the 'x' that serves as a close button.
 html::element_handle

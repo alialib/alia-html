@@ -1,0 +1,11 @@
+.demo-panel {
+}
+
+.demo-panel .btn {
+    margin: 2px 2px;
+}
+
+input {
+    display: block;
+    margin: 4px 2px;
+}
