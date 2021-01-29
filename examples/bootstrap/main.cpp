@@ -169,44 +169,40 @@ modals_demo(demo_context ctx)
     section_heading(ctx, "modals", "Modals", "components/modal/");
 
     subsection_heading(ctx, "Simple");
-    // div(ctx, "demo-panel", [&] {
-    //     /// [simple-modal]
-    //     auto my_modal = bs::modal(ctx, [&] {
-    //         bs::standard_modal_header(ctx, "Simple Modal");
-    //         bs::modal_body(ctx, [&] { p(ctx, "This is a simple modal."); });
-    //         bs::modal_footer(ctx, [&] {
-    //             bs::primary_button(
-    //                 ctx, "Close", callback([&] { bs::close_modal(); }));
-    //         });
-    //     });
-    //     bs::primary_button(
-    //         ctx, "Activate", callback([&] { my_modal.activate(); }));
-    //     /// [simple-modal]
-    // });
+    div(ctx, "demo-panel", [&] {
+        /// [simple-modal]
+        auto my_modal = bs::modal(ctx, [&](auto modal) {
+            modal.title("Simple Modal");
+            modal.body([&] { p(ctx, "There's not much to see here."); });
+            modal.footer([&] {
+                bs::primary_button(ctx, "Close", modal.close_action());
+            });
+        });
+        bs::primary_button(ctx, "Activate", my_modal.activate_action());
+        /// [simple-modal]
+    });
     code_snippet(ctx, "simple-modal");
 
     subsection_heading(ctx, "w/Shared State");
+    // clang-format off
     div(ctx, "demo-panel", [&] {
         /// [shared-state-modal]
         auto my_state = get_state(ctx, "Edit me!");
-        p(ctx, "Here's some state that will be visible to the modal:");
+        p(ctx, "Here's some state that we'll pass to the modal for editing:");
         input(ctx, my_state);
         auto my_modal = bs::modal(ctx, [&](auto modal) {
             modal.title("State Sharing Modal");
+            // The state is naturally visible in here, so just make a local
+            // copy of it.
             auto local_copy = get_transient_state(ctx, my_state);
             modal.body([&] {
-                p(ctx,
-                  "Since this modal lives inside the parent component, it can "
-                  "see (and modify) the parent's state. We'll make a local "
-                  "copy of it here, let the user edit that copy, and write "
-                  "back to it if the user OKs the modal.");
+                p(ctx, "Here's a local copy of the state to edit.");
+                p(ctx, "OK this dialog to save the changes.");
                 input(ctx, local_copy);
             });
             modal.footer([&] {
                 bs::link_button(ctx, "Cancel", modal.close_action());
-                bs::primary_button(
-                    ctx,
-                    "OK",
+                bs::primary_button(ctx, "OK",
                     (my_state <<= local_copy, modal.close_action()));
             });
         });
@@ -215,6 +211,7 @@ modals_demo(demo_context ctx)
         bs::primary_button(ctx, "Activate", my_modal.activate_action());
         /// [shared-state-modal]
     });
+    // clang-format on
     code_snippet(ctx, "shared-state-modal");
 }
 

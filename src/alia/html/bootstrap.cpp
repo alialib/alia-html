@@ -67,7 +67,6 @@ void
 modal_handle::activate()
 {
     data.active = true;
-    std::cout << "activate: " << this->asmdom_id() << std::endl;
     EM_ASM({ jQuery(Module['nodes'][$0]).modal('show'); }, this->asmdom_id());
 }
 
