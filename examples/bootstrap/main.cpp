@@ -5,10 +5,8 @@
 #include <alia/html/widgets.hpp>
 #include <sstream>
 
-using namespace alia;
-using namespace html;
-
 /// [namespace]
+using namespace alia;
 namespace bs = alia::html::bootstrap;
 /// [namespace]
 
@@ -17,9 +15,25 @@ ALIA_DEFINE_TAGGED_TYPE(src_tag, apply_signal<std::string>&)
 typedef extend_context_type_t<html::context, src_tag> demo_context;
 
 void
-section_heading(html::context ctx, char const* anchor, char const* label)
+bootstrap_docs_link(html::context ctx, char const* path)
 {
-    element(ctx, "h2").classes("mt-5 mb-4").children([&] {
+    link(
+        ctx,
+        "Bootstrap docs",
+        "https://getbootstrap.com/docs/4.5/" + value(path))
+        .classes("bs-docs-link d-inline-block mb-3")
+        .attr("target", "_blank")
+        .attr("rel", "noopener noreferrer");
+}
+
+void
+section_heading(
+    html::context ctx,
+    char const* anchor,
+    char const* label,
+    char const* bs_docs_path)
+{
+    element(ctx, "h2").classes("mt-5 mb-3").children([&] {
         element(ctx, "a")
             .attr("name", anchor)
             .attr(
@@ -28,12 +42,13 @@ section_heading(html::context ctx, char const* anchor, char const* label)
                 "display: inline-block;")
             .text(label);
     });
+    bootstrap_docs_link(ctx, bs_docs_path);
 }
 
 void
 subsection_heading(html::context ctx, char const* label)
 {
-    element(ctx, "h4").classes("mt-3 mb-3").text(label);
+    element(ctx, "h5").classes("mt-4 mb-3").text(label);
 }
 
 std::string
@@ -96,9 +111,25 @@ code_snippet(demo_context ctx, char const* tag)
 }
 
 void
+breadcrumb_demo(demo_context ctx)
+{
+    section_heading(
+        ctx, "breadcrumbs", "Breadcrumbs", "components/breadcrumb/");
+    /// [breadcrumb]
+    {
+        bs::breadcrumb bc(ctx);
+        bc.item([&] { link(ctx, "Home", actions::noop()); });
+        bc.item([&] { link(ctx, "Library", actions::noop()); });
+        bc.active_item("Data");
+    }
+    /// [breadcrumb]
+    code_snippet(ctx, "breadcrumb");
+}
+
+void
 buttons_demo(demo_context ctx)
 {
-    section_heading(ctx, "buttons", "Buttons");
+    section_heading(ctx, "buttons", "Buttons", "components/buttons/");
 
     subsection_heading(ctx, "Normal");
     div(ctx, "demo-panel", [&] {
@@ -135,48 +166,55 @@ buttons_demo(demo_context ctx)
 void
 modals_demo(demo_context ctx)
 {
-    section_heading(ctx, "modals", "Modals");
+    section_heading(ctx, "modals", "Modals", "components/modal/");
 
     subsection_heading(ctx, "Simple");
-    {
-        /// [simple-modal]
-        auto my_modal = bs::modal(ctx, [&] {
-            bs::standard_modal_header(ctx, "Simple Modal");
-            bs::modal_body(ctx, [&] { p(ctx, "This is a simple modal."); });
-            bs::modal_footer(ctx, [&] {
-                bs::primary_button(
-                    ctx, "Close", callback([&] { bs::close_modal(); }));
-            });
-        });
-        bs::primary_button(
-            ctx, "Activate", callback([&] { my_modal.activate(); }));
-        /// [simple-modal]
-    }
+    // div(ctx, "demo-panel", [&] {
+    //     /// [simple-modal]
+    //     auto my_modal = bs::modal(ctx, [&] {
+    //         bs::standard_modal_header(ctx, "Simple Modal");
+    //         bs::modal_body(ctx, [&] { p(ctx, "This is a simple modal."); });
+    //         bs::modal_footer(ctx, [&] {
+    //             bs::primary_button(
+    //                 ctx, "Close", callback([&] { bs::close_modal(); }));
+    //         });
+    //     });
+    //     bs::primary_button(
+    //         ctx, "Activate", callback([&] { my_modal.activate(); }));
+    //     /// [simple-modal]
+    // });
     code_snippet(ctx, "simple-modal");
 
     subsection_heading(ctx, "w/Shared State");
-    {
+    div(ctx, "demo-panel", [&] {
         /// [shared-state-modal]
         auto my_state = get_state(ctx, "Edit me!");
         p(ctx, "Here's some state that will be visible to the modal:");
         input(ctx, my_state);
-        auto my_modal = bs::modal(ctx, [&] {
-            bs::standard_modal_header(ctx, "Shared State Modal");
-            bs::modal_body(ctx, [&] {
+        auto my_modal = bs::modal(ctx, [&](auto modal) {
+            modal.title("State Sharing Modal");
+            auto local_copy = get_transient_state(ctx, my_state);
+            modal.body([&] {
                 p(ctx,
                   "Since this modal lives inside the parent component, it can "
-                  "see (and modify) the parent's state:");
-                input(ctx, my_state);
+                  "see (and modify) the parent's state. We'll make a local "
+                  "copy of it here, let the user edit that copy, and write "
+                  "back to it if the user OKs the modal.");
+                input(ctx, local_copy);
             });
-            bs::modal_footer(ctx, [&] {
+            modal.footer([&] {
+                bs::link_button(ctx, "Cancel", modal.close_action());
                 bs::primary_button(
-                    ctx, "Close", callback([&] { bs::close_modal(); }));
+                    ctx,
+                    "OK",
+                    (my_state <<= local_copy, modal.close_action()));
             });
         });
-        bs::primary_button(
-            ctx, "Activate", callback([&] { my_modal.activate(); }));
+        // Add a fade effect.
+        my_modal.class_("fade");
+        bs::primary_button(ctx, "Activate", my_modal.activate_action());
         /// [shared-state-modal]
-    }
+    });
     code_snippet(ctx, "shared-state-modal");
 }
 
@@ -193,9 +231,10 @@ root_ui(html::context vanilla_ctx)
                 div(ctx, "col-12", [&] {
                     p(ctx,
                       "All code snippets assume the following namespace "
-                      "alias is in effect:");
+                      "declarations are in effect:");
                     code_snippet(ctx, "namespace");
 
+                    breadcrumb_demo(ctx);
                     buttons_demo(ctx);
                     modals_demo(ctx);
                 });
