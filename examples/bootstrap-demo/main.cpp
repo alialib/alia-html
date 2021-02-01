@@ -218,7 +218,7 @@ modals_demo(demo_context ctx)
 void
 root_ui(html::context vanilla_ctx)
 {
-    auto src = fetch_text(vanilla_ctx, value("src/main.cpp"));
+    auto src = fetch_text(vanilla_ctx, value("main.cpp"));
 
     auto ctx = extend_context<src_tag>(vanilla_ctx, src);
 
