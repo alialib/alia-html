@@ -293,6 +293,14 @@ struct element_handle_base
         return static_cast<Derived&>(*this);
     }
 
+    // Specify a callback for a DOM event.
+    Derived&
+    on(char const* event_type, action<> const& action)
+    {
+        return callback(
+            event_type, [&](emscripten::val) { perform_action(action); });
+    }
+
     // Specify a callback to call on element initialization.
     template<class Callback>
     Derived&
