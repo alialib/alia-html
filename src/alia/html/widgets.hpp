@@ -95,6 +95,12 @@ struct input_handle : regular_element_handle<input_handle>
     on_enter(action<> on_enter);
 };
 
+inline input_handle
+input(html::context ctx)
+{
+    return input_handle(element(ctx, "input"));
+}
+
 namespace detail {
 input_handle
 input(html::context ctx, duplex<std::string> value);
@@ -148,6 +154,11 @@ link(html::context ctx, Text text, Href href)
 {
     return detail::link(ctx, signalize(text), signalize(href));
 }
+
+// CHECKBOX
+
+element_handle
+checkbox(html::context ctx, duplex<bool> value);
 
 // CONTAINERS
 

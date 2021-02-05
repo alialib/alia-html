@@ -15,11 +15,11 @@ struct todo_item
 
 typedef std::vector<todo_item> todo_list;
 
-bool
-completed_count(todo_list const& todos)
+size_t
+incomplete_count(todo_list const& todos)
 {
     return std::count_if(todos.begin(), todos.end(), [](auto const& item) {
-        return item.completed;
+        return !item.completed;
     });
 }
 
@@ -52,7 +52,7 @@ trim(std::string const& str)
 // UI
 
 void
-root_ui(html::context ctx)
+app_ui(html::context ctx)
 {
     auto todos = get_state(ctx, lambda_constant([&] { return todo_list(); }));
 
@@ -91,9 +91,8 @@ root_ui(html::context ctx)
                             //.class(mask("editing", editing))
                             .children([&] {
                                 div(ctx, "view", [&] {
-                                    //     <input class="toggle"
-                                    //     type="checkbox"
-                                    //      checked>
+                                    checkbox(ctx, alia_field(todo, completed))
+                                        .class_("toggle");
                                     label(ctx, alia_field(todo, description));
                                     //     <button class="destroy"></button>
                                     // </div>
@@ -107,8 +106,12 @@ root_ui(html::context ctx)
 
             footer(ctx, "footer", [&] {
                 span(ctx, "todo-count", [&] {
-                    strong(ctx, "0");
-                    text(ctx, " item left");
+                    auto items_left = apply(ctx, incomplete_count, todos);
+                    strong(ctx, as_text(ctx, items_left));
+                    text(
+                        ctx,
+                        conditional(
+                            items_left != 1, " items left", " item left"));
                 });
                 ul(ctx, "filters", [&] {
                     li(ctx).children([&] {
@@ -136,6 +139,6 @@ int
 main()
 {
     static html::system sys;
-    initialize(sys, root_ui);
+    initialize(sys, app_ui);
     enable_hash_monitoring(sys);
 };
