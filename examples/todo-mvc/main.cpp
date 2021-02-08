@@ -114,15 +114,13 @@ app_ui(html::context ctx)
                             items_left != 1, " items left", " item left"));
                 });
                 ul(ctx, "filters", [&] {
+                    li(ctx).children(
+                        [&] { link(ctx, "All", "#/").class_("selected"); });
                     li(ctx).children([&] {
-                        internal_link(ctx, "All", "/").class_("selected");
+                        link(ctx, "Active", "#/active").class_("selected");
                     });
                     li(ctx).children([&] {
-                        internal_link(ctx, "Active", "/active")
-                            .class_("selected");
-                    });
-                    li(ctx).children([&] {
-                        internal_link(ctx, "Completed", "/completed")
+                        link(ctx, "Completed", "#/completed")
                             .class_("selected");
                     });
                 });
