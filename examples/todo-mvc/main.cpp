@@ -11,6 +11,7 @@ struct todo_item
 {
     bool completed;
     std::string description;
+    int id;
 };
 
 typedef std::vector<todo_item> todo_list;
@@ -49,7 +50,22 @@ trim(std::string const& str)
     return str.substr(begin, end - begin + 1);
 }
 
+
+
 // UI
+
+bool
+mouse_inside(html::context ctx, html::element_handle element)
+{
+    bool* state;
+    if (get_data(ctx, &state))
+        *state = false;
+
+    element.callback("mouseenter", [&](auto) { *state = true; });
+    element.callback("mouseleave", [&](auto) { *state = false; });
+
+    return *state;
+}
 
 void
 app_ui(html::context ctx)
@@ -85,8 +101,8 @@ app_ui(html::context ctx)
                 label(ctx, "Mark all as complete").attr("for", "toggle-all");
                 ul(ctx, "todo-list", [&] {
                     for_each(ctx, todos, [&](auto ctx, auto todo) {
-                        li(ctx)
-                            .class_(
+                        auto item = li(ctx);
+                        item.class_(
                                 mask("completed", alia_field(todo, completed)))
                             //.class(mask("editing", editing))
                             .children([&] {
@@ -94,8 +110,15 @@ app_ui(html::context ctx)
                                     checkbox(ctx, alia_field(todo, completed))
                                         .class_("toggle");
                                     label(ctx, alia_field(todo, description));
-                                    //     <button class="destroy"></button>
-                                    // </div>
+                                    alia_if(mouse_inside(ctx, item))
+                                    {
+                                        button(
+                                            ctx,
+                                            alia_field(todo, description)
+                                            <<= "deleted")
+                                            .class_("destroy");
+                                    }
+                                    alia_end
                                     // <input class="edit"
                                     //  value="Create a TodoMVC template">
                                 });
