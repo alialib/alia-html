@@ -200,6 +200,8 @@ app_ui(html::context ctx)
 
     auto todos = alia_field(app, todos);
 
+    auto filter = alia::apply(ctx, hash_to_filter, get_location_hash(ctx));
+
     placeholder_root(ctx, "app-content", [&] {
         header(ctx, "header", [&] {
             h1(ctx, "todos");
@@ -240,14 +242,18 @@ app_ui(html::context ctx)
                             items_left != 1, " items left", " item left"));
                 });
                 ul(ctx, "filters", [&] {
-                    li(ctx).children(
-                        [&] { link(ctx, "All", "#/").class_("selected"); });
                     li(ctx).children([&] {
-                        link(ctx, "Active", "#/active").class_("selected");
+                        link(ctx, "All", "#/")
+                            .class_("selected", filter == view_filter::ALL);
+                    });
+                    li(ctx).children([&] {
+                        link(ctx, "Active", "#/active")
+                            .class_("selected", filter == view_filter::ACTIVE);
                     });
                     li(ctx).children([&] {
                         link(ctx, "Completed", "#/completed")
-                            .class_("selected");
+                            .class_(
+                                "selected", filter == view_filter::COMPLETED);
                     });
                 });
 
