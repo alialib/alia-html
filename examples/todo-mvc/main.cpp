@@ -10,11 +10,39 @@ using namespace alia;
 struct todo_item
 {
     bool completed;
-    std::string description;
+    std::string title;
     int id;
+
+    // The following disables copying of this struct (but keeps the default
+    // move constructor and move operator).
+    // You wouldn't normally do this when writing an alia app. We do it here
+    // just to demonstrate that alia
+    todo_item(todo_item const&) = delete;
+    todo_item&
+    operator=(todo_item const&)
+        = delete;
+    todo_item(todo_item&&) = default;
+    todo_item&
+    operator=(todo_item&&)
+        = default;
+    todo_item() = default;
 };
 
 typedef std::vector<todo_item> todo_list;
+
+struct app_state
+{
+    todo_list todos;
+    int next_id = 0;
+};
+
+app_state
+add_todo(app_state state, std::string title)
+{
+    state.todos.push_back(todo_item{false, title, state.next_id});
+    ++state.next_id;
+    return state;
+}
 
 size_t
 incomplete_count(todo_list const& todos)
@@ -50,11 +78,39 @@ trim(std::string const& str)
     return str.substr(begin, end - begin + 1);
 }
 
+enum class view_filter
+{
+    ALL,
+    ACTIVE,
+    COMPLETED
+};
 
+view_filter
+hash_to_filter(std::string const& hash)
+{
+    if (hash == "#/active")
+        return view_filter::ACTIVE;
+    if (hash == "#/completed")
+        return view_filter::COMPLETED;
+    return view_filter::ALL;
+}
+
+bool
+matches_filter(view_filter filter, todo_item const& item)
+{
+    return item.completed && filter != view_filter::ACTIVE
+           || !item.completed && filter != view_filter::COMPLETED;
+}
 
 // UI
 
-bool
+auto
+get_alia_id(todo_item const& item)
+{
+    return make_id(item.id);
+}
+
+auto
 mouse_inside(html::context ctx, html::element_handle element)
 {
     bool* state;
@@ -68,9 +124,81 @@ mouse_inside(html::context ctx, html::element_handle element)
 }
 
 void
+todo_item_ui(html::context ctx, duplex<todo_list> todos)
+{
+}
+
+void
+todo_list_ui(html::context ctx, duplex<todo_list> todos)
+{
+    auto filter = alia::apply(ctx, hash_to_filter, get_location_hash(ctx));
+
+    ul(ctx, "todo-list", [&] {
+        for_each(ctx, todos, [&](size_t index, auto todo) {
+            auto matches = apply(ctx, matches_filter, filter, todo);
+            alia_if(matches)
+            {
+                auto editing = get_state(ctx, false);
+                li(ctx)
+                    .class_("completed", alia_field(todo, completed))
+                    .class_("editing", editing)
+                    .children([&] {
+                        alia_if(editing)
+                        {
+                            auto new_title = get_transient_state(
+                                ctx, alia_field(todo, title));
+                            input(ctx, new_title)
+                                .class_("edit")
+                                .on_enter(
+                                    (alia_field(todo, title) <<= new_title,
+                                     editing <<= false));
+                        }
+                        alia_else
+                        {
+                            auto view = div(ctx, "view");
+                            view.children([&] {
+                                checkbox(ctx, alia_field(todo, completed))
+                                    .class_("toggle");
+                                label(ctx, alia_field(todo, title));
+                                alia_if(mouse_inside(ctx, view))
+                                {
+                                    button(
+                                        ctx,
+                                        actions::erase_index(todos, index))
+                                        .class_("destroy");
+                                }
+                                alia_end
+                            });
+                            view.on("dblclick", editing <<= true);
+                        }
+                        alia_end
+                    });
+            }
+            alia_end
+        });
+    });
+}
+
+namespace alia { namespace actions {
+
+template<class Function, class PrimaryState, class... Args>
+auto
+apply(Function&& f, PrimaryState state, Args... args)
+{
+    return state <<= lazy_apply(
+               std::forward<Function>(f),
+               alia::move(state),
+               std::move(args)...);
+}
+
+}} // namespace alia::actions
+
+void
 app_ui(html::context ctx)
 {
-    auto todos = get_state(ctx, lambda_constant([&] { return todo_list(); }));
+    auto app = get_state(ctx, lambda_constant([&] { return app_state(); }));
+
+    auto todos = alia_field(app, todos);
 
     placeholder_root(ctx, "app-content", [&] {
         header(ctx, "header", [&] {
@@ -82,11 +210,11 @@ app_ui(html::context ctx)
                 .placeholder("What needs to be done?")
                 .autofocus()
                 .on_enter(
-                    (alia::actions::push_back(todos) << alia::apply(
-                         ctx,
-                         [](auto description) {
-                             return todo_item{false, description};
-                         },
+                    // (actions::apply(
+                    //      add_todo, app, alia::mask(trimmed, trimmed != "")),
+                    (app <<= alia::lazy_apply(
+                         add_todo,
+                         alia::move(app),
                          alia::mask(trimmed, trimmed != "")),
                      new_todo <<= ""));
         });
@@ -99,32 +227,7 @@ app_ui(html::context ctx)
                     .attr("class", "toggle-all")
                     .attr("type", "checkbox");
                 label(ctx, "Mark all as complete").attr("for", "toggle-all");
-                ul(ctx, "todo-list", [&] {
-                    for_each(ctx, todos, [&](auto ctx, auto todo) {
-                        auto item = li(ctx);
-                        item.class_(
-                                mask("completed", alia_field(todo, completed)))
-                            //.class(mask("editing", editing))
-                            .children([&] {
-                                div(ctx, "view", [&] {
-                                    checkbox(ctx, alia_field(todo, completed))
-                                        .class_("toggle");
-                                    label(ctx, alia_field(todo, description));
-                                    alia_if(mouse_inside(ctx, item))
-                                    {
-                                        button(
-                                            ctx,
-                                            alia_field(todo, description)
-                                            <<= "deleted")
-                                            .class_("destroy");
-                                    }
-                                    alia_end
-                                    // <input class="edit"
-                                    //  value="Create a TodoMVC template">
-                                });
-                            });
-                    });
-                });
+                todo_list_ui(ctx, todos);
             });
 
             footer(ctx, "footer", [&] {
@@ -148,7 +251,10 @@ app_ui(html::context ctx)
                     });
                 });
 
-                button(ctx, "Clear completed", actions::noop())
+                button(
+                    ctx,
+                    "Clear completed",
+                    todos <<= lazy_apply(clear_completed, alia::move(todos)))
                     .class_("clear-completed");
             });
         }
