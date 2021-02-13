@@ -1,144 +1,51 @@
 #include <alia/html.hpp>
 #include <alia/html/routing.hpp>
 
-#include <algorithm>
+#include "model.hpp"
 
 using namespace alia;
 
-// MODEL
+// Define the objects in our app's context.
+ALIA_DEFINE_TAGGED_TYPE(app_state_tag, duplex<app_state>)
+ALIA_DEFINE_TAGGED_TYPE(view_filter_tag, readable<item_filter>)
+typedef extend_context_type_t<html::context, app_state_tag, view_filter_tag>
+    app_context;
 
-struct todo_item
-{
-    bool completed;
-    std::string title;
-    int id;
-
-    // The following disables copying of this struct (but keeps the default
-    // move constructor and move operator).
-    // You wouldn't normally do this when writing an alia app. We do it here
-    // just to demonstrate that alia
-    todo_item(todo_item const&) = delete;
-    todo_item&
-    operator=(todo_item const&)
-        = delete;
-    todo_item(todo_item&&) = default;
-    todo_item&
-    operator=(todo_item&&)
-        = default;
-    todo_item() = default;
-};
-
-typedef std::vector<todo_item> todo_list;
-
-struct app_state
-{
-    todo_list todos;
-    int next_id = 0;
-};
-
-app_state
-add_todo(app_state state, std::string title)
-{
-    state.todos.push_back(todo_item{false, title, state.next_id});
-    ++state.next_id;
-    return state;
-}
-
-size_t
-incomplete_count(todo_list const& todos)
-{
-    return std::count_if(todos.begin(), todos.end(), [](auto const& item) {
-        return !item.completed;
-    });
-}
-
-todo_list
-clear_completed(todo_list todos)
-{
-    todos.erase(
-        std::remove_if(
-            todos.begin(),
-            todos.end(),
-            [](todo_item const& item) { return item.completed; }),
-        todos.end());
-    return todos;
-}
-
-// How is it that we still don't have string trimming in the C++ standard
-// library!?
-std::string
-trim(std::string const& str)
-{
-    auto const begin = str.find_first_not_of(" ");
-    if (begin == std::string::npos)
-        return "";
-
-    auto const end = str.find_last_not_of(" ");
-
-    return str.substr(begin, end - begin + 1);
-}
-
-enum class view_filter
-{
-    ALL,
-    ACTIVE,
-    COMPLETED
-};
-
-view_filter
-hash_to_filter(std::string const& hash)
-{
-    if (hash == "#/active")
-        return view_filter::ACTIVE;
-    if (hash == "#/completed")
-        return view_filter::COMPLETED;
-    return view_filter::ALL;
-}
-
-bool
-matches_filter(view_filter filter, todo_item const& item)
-{
-    return item.completed && filter != view_filter::ACTIVE
-           || !item.completed && filter != view_filter::COMPLETED;
-}
-
-// UI
-
+// Tell alia that our TODO items can be stably identified by their 'id' member.
 auto
 get_alia_id(todo_item const& item)
 {
     return make_id(item.id);
 }
 
-auto
-mouse_inside(html::context ctx, html::element_handle element)
-{
-    bool* state;
-    if (get_data(ctx, &state))
-        *state = false;
-
-    element.callback("mouseenter", [&](auto) { *state = true; });
-    element.callback("mouseleave", [&](auto) { *state = false; });
-
-    return *state;
-}
-
 void
-todo_item_ui(html::context ctx, duplex<todo_list> todos)
+todo_item_ui(app_context ctx, size_t index, duplex<todo_item> todo)
 {
 }
 
-void
-todo_list_ui(html::context ctx, duplex<todo_list> todos)
+// Translate location hash strings to our item_filter enum type.
+item_filter
+hash_to_filter(std::string const& hash)
 {
-    auto filter = alia::apply(ctx, hash_to_filter, get_location_hash(ctx));
+    if (hash == "#/active")
+        return item_filter::ACTIVE;
+    if (hash == "#/completed")
+        return item_filter::COMPLETED;
+    return item_filter::ALL;
+}
+
+void
+todo_list_ui(app_context ctx)
+{
+    auto todos = alia_field(get<app_state_tag>(ctx), todos);
 
     ul(ctx, "todo-list", [&] {
         for_each(ctx, todos, [&](size_t index, auto todo) {
-            auto matches = apply(ctx, matches_filter, filter, todo);
+            auto matches
+                = apply(ctx, matches_filter, get<view_filter_tag>(ctx), todo);
             alia_if(matches)
             {
-                auto editing = get_state(ctx, false);
+                auto editing = get_transient_state(ctx, false);
                 li(ctx)
                     .class_("completed", alia_field(todo, completed))
                     .class_("editing", editing)
@@ -147,11 +54,15 @@ todo_list_ui(html::context ctx, duplex<todo_list> todos)
                         {
                             auto new_title = get_transient_state(
                                 ctx, alia_field(todo, title));
+                            auto save
+                                = (alia_field(todo, title) <<= new_title,
+                                   editing <<= false);
                             input(ctx, new_title)
                                 .class_("edit")
-                                .on_enter(
-                                    (alia_field(todo, title) <<= new_title,
-                                     editing <<= false));
+                                .on_init([](auto& self) { focus(self); })
+                                .on("blur", save)
+                                .on_enter(save)
+                                .on_escape(editing <<= false);
                         }
                         alia_else
                         {
@@ -159,7 +70,8 @@ todo_list_ui(html::context ctx, duplex<todo_list> todos)
                             view.children([&] {
                                 checkbox(ctx, alia_field(todo, completed))
                                     .class_("toggle");
-                                label(ctx, alia_field(todo, title));
+                                label(ctx, alia_field(todo, title))
+                                    .on("dblclick", editing <<= true);
                                 alia_if(mouse_inside(ctx, view))
                                 {
                                     button(
@@ -169,7 +81,6 @@ todo_list_ui(html::context ctx, duplex<todo_list> todos)
                                 }
                                 alia_end
                             });
-                            view.on("dblclick", editing <<= true);
                         }
                         alia_end
                     });
@@ -179,92 +90,119 @@ todo_list_ui(html::context ctx, duplex<todo_list> todos)
     });
 }
 
-namespace alia { namespace actions {
-
-template<class Function, class PrimaryState, class... Args>
-auto
-apply(Function&& f, PrimaryState state, Args... args)
+// This component function is responsible for the UI for adding a new TODO
+// item to the list.
+void
+new_todo_ui(app_context ctx)
 {
-    return state <<= lazy_apply(
-               std::forward<Function>(f),
-               alia::move(state),
-               std::move(args)...);
+    // Get some component-local state to store the title of the new TODO.
+    auto new_todo = get_state(ctx, std::string());
+
+    input(ctx, new_todo)
+        .class_("new-todo")
+        .placeholder("What needs to be done?")
+        .autofocus()
+        .on_enter(
+            // In response to the enter key, we need to:
+            // - Trim the new_todo string.
+            // - Check that it's not empty. (Abort if it is.)
+            // - Invoke 'add_todo' to add it to our app's state.
+            // - Reset new_todo to an empty string.
+            new_todo <<= "");
+    // (actions::apply(
+    //      add_todo,
+    //      get<app_state_tag>(ctx),
+    //      hide_if_empty(apply(ctx, trim, new_todo))),
+    //  new_todo <<= ""));
 }
 
-}} // namespace alia::actions
-
 void
-app_ui(html::context ctx)
+app_ui(app_context ctx)
 {
-    auto app = get_state(ctx, lambda_constant([&] { return app_state(); }));
+    auto todos = alia_field(get<app_state_tag>(ctx), todos);
+    auto filter = get<view_filter_tag>(ctx);
 
-    auto todos = alia_field(app, todos);
+    header(ctx, "header", [&] {
+        h1(ctx, "todos");
+        new_todo_ui(ctx);
+    });
 
-    auto filter = alia::apply(ctx, hash_to_filter, get_location_hash(ctx));
+    alia_if(!is_empty(todos))
+    {
+        auto items_left = apply(ctx, incomplete_count, todos);
+        auto all_complete = items_left == size(todos);
 
-    placeholder_root(ctx, "app-content", [&] {
-        header(ctx, "header", [&] {
-            h1(ctx, "todos");
-            auto new_todo = get_state(ctx, std::string());
-            auto trimmed = apply(ctx, trim, new_todo);
-            input(ctx, new_todo)
-                .class_("new-todo")
-                .placeholder("What needs to be done?")
-                .autofocus()
-                .on_enter(
-                    // (actions::apply(
-                    //      add_todo, app, alia::mask(trimmed, trimmed != "")),
-                    (app <<= alia::lazy_apply(
-                         add_todo,
-                         alia::move(app),
-                         alia::mask(trimmed, trimmed != "")),
-                     new_todo <<= ""));
+        section(ctx, "main", [&] {
+            element(ctx, "input")
+                .attr("id", "toggle-all")
+                .attr("class", "toggle-all")
+                .attr("type", "checkbox")
+                .prop("checked", !all_complete)
+                .on("change",
+                    actions::apply(set_completed_flags, todos, !all_complete));
+            label(ctx, "Mark all as complete").attr("for", "toggle-all");
+            todo_list_ui(ctx);
         });
 
-        alia_if(!is_empty(todos))
-        {
-            section(ctx, "main", [&] {
-                element(ctx, "input")
-                    .attr("id", "toggle-all")
-                    .attr("class", "toggle-all")
-                    .attr("type", "checkbox");
-                label(ctx, "Mark all as complete").attr("for", "toggle-all");
-                todo_list_ui(ctx, todos);
-            });
-
-            footer(ctx, "footer", [&] {
-                span(ctx, "todo-count", [&] {
-                    auto items_left = apply(ctx, incomplete_count, todos);
-                    strong(ctx, as_text(ctx, items_left));
-                    text(
-                        ctx,
-                        conditional(
-                            items_left != 1, " items left", " item left"));
-                });
-                ul(ctx, "filters", [&] {
-                    li(ctx).children([&] {
-                        link(ctx, "All", "#/")
-                            .class_("selected", filter == view_filter::ALL);
-                    });
-                    li(ctx).children([&] {
-                        link(ctx, "Active", "#/active")
-                            .class_("selected", filter == view_filter::ACTIVE);
-                    });
-                    li(ctx).children([&] {
-                        link(ctx, "Completed", "#/completed")
-                            .class_(
-                                "selected", filter == view_filter::COMPLETED);
-                    });
-                });
-
-                button(
+        footer(ctx, "footer", [&] {
+            span(ctx, "todo-count", [&] {
+                strong(ctx, as_text(ctx, items_left));
+                text(
                     ctx,
-                    "Clear completed",
-                    todos <<= lazy_apply(clear_completed, alia::move(todos)))
-                    .class_("clear-completed");
+                    conditional(items_left != 1, " items left", " item left"));
             });
-        }
-        alia_end
+            ul(ctx, "filters", [&] {
+                li(ctx).children([&] {
+                    link(ctx, "All", "#/")
+                        .class_("selected", filter == item_filter::ALL);
+                });
+                li(ctx).children([&] {
+                    link(ctx, "Active", "#/active")
+                        .class_("selected", filter == item_filter::ACTIVE);
+                });
+                li(ctx).children([&] {
+                    link(ctx, "Completed", "#/completed")
+                        .class_("selected", filter == item_filter::COMPLETED);
+                });
+            });
+
+            button(
+                ctx, "Clear completed", actions::apply(clear_completed, todos))
+                .class_("clear-completed");
+        });
+    }
+    alia_end
+}
+
+void
+root_ui(html::context ctx)
+{
+    // Construct the signal for our applications state...
+    // First, create a binding to the raw, JSON state in local storage.
+    auto json_state = get_local_state(ctx, "todos-alia");
+    // Pass that through a two-way serializer/deserializer to convert it to our
+    // native C++ representation.
+    auto native_state
+        = duplex_apply(ctx, json_to_app_state, app_state_to_json, json_state);
+    // And finally, add a default value (of default-initialized state) for when
+    // the raw JSON doesn't exist yet.
+    // auto state = add_default(
+    //     native_state, lambda_constant([&] { return app_state(); }));
+
+    auto state = get_state(ctx, lambda_constant([&] { return app_state(); }));
+
+    // Parse the location hash to determine the active filter.
+    auto filter = apply(ctx, hash_to_filter, get_location_hash(ctx));
+
+    // Add these two signals to the alia/HTML context to create our app
+    // context.
+    with_extended_context<app_state_tag>(ctx, state, [&](auto ctx) {
+        with_extended_context<view_filter_tag>(ctx, filter, [&](auto ctx) {
+            // Root the app UI in the HTML DOM tree.
+            // Our app's UI will be placed at the placeholder HTML element
+            // with the ID "app-content".
+            placeholder_root(ctx, "app-content", [&] { app_ui(ctx); });
+        });
     });
 }
 
@@ -272,6 +210,6 @@ int
 main()
 {
     static html::system sys;
-    initialize(sys, app_ui);
+    initialize(sys, root_ui);
     enable_hash_monitoring(sys);
 };

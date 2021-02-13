@@ -5,9 +5,19 @@ namespace alia { namespace html {
 input_handle&
 input_handle::on_enter(action<> on_enter)
 {
-    this->callback("keyup", [&](emscripten::val& e) {
+    this->callback("keydown", [&](emscripten::val& e) {
         if (e["key"].as<std::string>() == "Enter")
             perform_action(on_enter);
+    });
+    return *this;
+}
+
+input_handle&
+input_handle::on_escape(action<> on_escape)
+{
+    this->callback("keydown", [&](emscripten::val& e) {
+        if (e["key"].as<std::string>() == "Escape")
+            perform_action(on_escape);
     });
     return *this;
 }

@@ -507,4 +507,28 @@ html_fragment(context ctx, readable<std::string> html)
     return html_fragment_handle{ctx, just_loaded};
 }
 
+void
+focus(element_handle element)
+{
+    EM_ASM(
+        {
+            var node = Module['nodes'][$0];
+            node.focus();
+        },
+        element.asmdom_id());
+}
+
+bool
+mouse_inside(context ctx, html::element_handle element)
+{
+    bool* state;
+    if (get_data(ctx, &state))
+        *state = false;
+
+    element.callback("mouseenter", [&](auto) { *state = true; });
+    element.callback("mouseleave", [&](auto) { *state = false; });
+
+    return *state;
+}
+
 }} // namespace alia::html

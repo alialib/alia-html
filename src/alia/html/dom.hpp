@@ -292,7 +292,7 @@ struct element_handle_base
         return static_cast<Derived&>(*this);
     }
 
-    // Specify a callback for a DOM event.
+    // Specify an action to perform in response to a DOM event.
     Derived&
     on(char const* event_type, action<> const& action)
     {
@@ -306,7 +306,7 @@ struct element_handle_base
     on_init(Callback&& callback)
     {
         if (this->initializing())
-            std::forward<Callback>(callback)(*this);
+            std::forward<Callback>(callback)(static_cast<Derived&>(*this));
         return static_cast<Derived&>(*this);
     }
 
@@ -524,6 +524,12 @@ struct html_fragment_handle
 
 html_fragment_handle
 html_fragment(context ctx, readable<std::string> html);
+
+void
+focus(element_handle element);
+
+bool
+mouse_inside(context ctx, html::element_handle element);
 
 }} // namespace alia::html
 

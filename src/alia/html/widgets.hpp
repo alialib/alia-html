@@ -93,6 +93,11 @@ struct input_handle : regular_element_handle<input_handle>
     // input.
     input_handle&
     on_enter(action<> on_enter);
+
+    // Define an action to be performed when the Escape key is pressed on the
+    // input.
+    input_handle&
+    on_escape(action<> on_escape);
 };
 
 inline input_handle

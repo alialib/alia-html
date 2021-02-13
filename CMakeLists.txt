@@ -89,3 +89,5 @@ define_example(routing-demo)
 define_example(io-demos)
 define_example(elements-demo)
 define_example(todo-mvc)
+target_include_directories(todo-mvc PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/external/cereal/include)
