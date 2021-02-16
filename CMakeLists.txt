@@ -51,8 +51,26 @@ target_include_directories(alia_html PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src")
 # "Deploy" the given file to the given directory.
 # In normal development, this creates a symlink of the file for more rapid
 # iteration.
+# In CI, it copies the file.
+function(deploy file_path destination_directory)
+    if(DEFINED ENV{CI})
+        file(COPY
+            ${file_path}
+            DESTINATION ${destination_directory})
+    else()
+        get_filename_component(file_name "${file_path}" NAME)
+        file(CREATE_LINK
+            ${file_path}
+            ${destination_directory}/${file_name}
+            SYMBOLIC)
+    endif()
+endfunction()
+
+# "Deploy" a built file to the given directory.
+# In normal development, this creates a symlink of the file for more rapid
+# iteration.
 # In CI, it sets up a post-build step to copy the file.
-function(deploy target file_path destination_directory)
+function(post_build_deploy target file_path destination_directory)
     get_filename_component(file_name "${file_path}" NAME)
     if(DEFINED ENV{CI})
         add_custom_command(TARGET ${target} POST_BUILD
@@ -65,29 +83,63 @@ function(deploy target file_path destination_directory)
     endif()
 endfunction()
 
+# Create a subdirectory in the build dir that we'll use to accumulate all the
+# files that need to be deployed to the web.
+set(deploy_dir ${CMAKE_CURRENT_BINARY_DIR}/deploy)
+file(MAKE_DIRECTORY ${deploy_dir})
+
+# Deploy the root index.html file.
+deploy(
+    "${CMAKE_CURRENT_SOURCE_DIR}/examples/index.html"
+    "${deploy_dir}")
+# Extract and deploy the favicon.
+file(ARCHIVE_EXTRACT
+    INPUT "${CMAKE_CURRENT_SOURCE_DIR}/examples/favicon.zip"
+    DESTINATION "${deploy_dir}")
+
+# On CI, create the CNAME file for GitHub Pages.
+if(DEFINED ENV{CI})
+    file(WRITE ${deploy_dir}/CNAME "html.alia.dev")
+endif()
+
 # Set up the build for an example.
-function(define_example name)
+function(add_example name dir)
     file(GLOB source_files "${CMAKE_CURRENT_SOURCE_DIR}/examples/${name}/*")
-    add_executable(${name}
-        examples/${name}/main.cpp
-        examples/demo-utilities/utilities.cpp)
-    set_target_properties(${name} PROPERTIES OUTPUT_NAME ${name})
+    file(GLOB cpp_files "${CMAKE_CURRENT_SOURCE_DIR}/examples/${name}/*.cpp")
+    add_executable(${name} ${cpp_files})
     target_link_libraries(${name} alia_html)
-    set(deploy_dir "${CMAKE_CURRENT_BINARY_DIR}/deploy/${name}")
-    file(MAKE_DIRECTORY ${deploy_dir})
+    set(deploy_subdir "${deploy_dir}/${dir}")
+    file(MAKE_DIRECTORY ${deploy_subdir})
+    set_target_properties(${name} PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY ${deploy_subdir}
+        OUTPUT_NAME app)
     foreach(file_path ${source_files})
-        deploy(${name} ${file_path} ${deploy_dir})
+        deploy(${file_path} ${deploy_subdir})
     endforeach()
-    deploy(${name} ${CMAKE_CURRENT_BINARY_DIR}/${name}.js ${deploy_dir})
-    deploy(${name} ${CMAKE_CURRENT_BINARY_DIR}/${name}.wasm ${deploy_dir})
-    deploy(${name} ${CMAKE_CURRENT_BINARY_DIR}/asm-dom.js ${deploy_dir})
+    post_build_deploy(${name}
+        ${CMAKE_CURRENT_BINARY_DIR}/asm-dom.js
+        ${deploy_subdir})
 endfunction()
 
-# Define the examples.
-define_example(bootstrap-demo)
-define_example(routing-demo)
-define_example(io-demos)
-define_example(elements-demo)
-define_example(todo-mvc)
+# Set up the build for a demo.
+function(add_demo name dir)
+    add_example(${name} ${dir})
+    target_sources(${name} PRIVATE
+        examples/demolib/utilities.cpp)
+    set(deploy_subdir "${deploy_dir}/${dir}")
+    deploy(
+        ${CMAKE_CURRENT_SOURCE_DIR}/examples/demolib/demo.css
+        ${deploy_subdir})
+    deploy(
+        ${CMAKE_CURRENT_SOURCE_DIR}/examples/demolib/index.html
+        ${deploy_subdir})
+endfunction()
+
+# Add the demos.
+add_demo(bootstrap-demo demos/bootstrap)
+add_demo(routing-demo demos/routing)
+add_demo(io-demos demos/io)
+add_demo(elements-demo demos/elements)
+add_demo(todo-mvc demos/todo-mvc)
 target_include_directories(todo-mvc PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/external/cereal/include)

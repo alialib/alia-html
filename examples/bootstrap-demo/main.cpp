@@ -5,7 +5,7 @@
 #include <alia/html/widgets.hpp>
 #include <sstream>
 
-#include "../demo-utilities/utilities.hpp"
+#include "../demolib/utilities.hpp"
 
 /// [namespace]
 using namespace alia;
@@ -19,7 +19,8 @@ bootstrap_docs_link(html::context ctx, char const* path)
         ctx,
         "Bootstrap docs",
         "https://getbootstrap.com/docs/4.5/" + value(path))
-        .classes("bs-docs-link d-inline-block mb-3")
+        .classes("d-inline-block mb-3")
+        .attr("style", "margin-top: 4px !important;")
         .attr("target", "_blank")
         .attr("rel", "noopener noreferrer");
 }
@@ -90,14 +91,16 @@ buttons_demo(demo_context ctx)
     subsection_heading(ctx, "w/Dynamic Style");
     p(ctx,
       "You can also specify a button's style dynamically if needed. In this "
-      "demo, the button's style class is controlled through the input above "
+      "demo, the button's style class is controlled through the links below "
       "it.");
 
     div(ctx, "demo-panel", [&] {
         /// [dynamic-button-style]
         auto style = get_state(ctx, "btn-danger");
-        input(ctx, style);
         bs::button(ctx, style, "Dynamic", actions::noop());
+        link(ctx, "Primary", style <<= "btn-primary");
+        link(ctx, "Danger", style <<= "btn-danger");
+        link(ctx, "Warning", style <<= "btn-warning");
         /// [dynamic-button-style]
     });
     code_snippet(ctx, "dynamic-button-style");
@@ -275,7 +278,61 @@ void
 root_ui(html::context vanilla_ctx)
 {
     with_demo_context(vanilla_ctx, [&](auto ctx) {
+        placeholder_root(ctx, "nav-content", [&] {
+            li(ctx, "nav-item dropdown", [&] {
+                a(ctx)
+                    .attr("class", "nav-link dropdown-toggle")
+                    .attr("href", "#")
+                    .attr("data-toggle", "dropdown")
+                    .text("Components");
+                div(ctx, "dropdown-menu dropdown-menu-right", [&] {
+                    a(ctx)
+                        .attr("class", "dropdown-item")
+                        .attr("href", "#breadcrumbs")
+                        .text("Breadcrumbs");
+                    a(ctx)
+                        .attr("class", "dropdown-item")
+                        .attr("href", "#buttons")
+                        .text("Buttons");
+                    a(ctx)
+                        .attr("class", "dropdown-item")
+                        .attr("href", "#dropdowns")
+                        .text("Dropdowns");
+                    a(ctx)
+                        .attr("class", "dropdown-item")
+                        .attr("href", "#modals")
+                        .text("Modals");
+                    a(ctx)
+                        .attr("class", "dropdown-item")
+                        .attr("href", "#tooltips")
+                        .text("Tooltips");
+                });
+            });
+        });
+
         placeholder_root(ctx, "demos", [&] {
+            h1(ctx, "alia/HTML Bootstrap Interface")
+                .attr("class", "mt-5 mb-3");
+
+            p(ctx,
+              "This is a demonstration of alia/HTML's interface to "
+              "Bootstrap components. Not all Bootstrap components "
+              "currently have dedicated interfaces, but more will be "
+              "added here as they're created.");
+
+            p(ctx, [&] {
+                text(ctx, "This page is styled with ");
+                link(
+                    ctx,
+                    "the Bootswatch Lux theme",
+                    "https://bootswatch.com/lux/");
+                text(
+                    ctx,
+                    " but nothing in the code is specific to that theme, so "
+                    "you should be free to use any Bootstrap-compatible "
+                    "theme. (alia/HTML currently targets Bootstrap 4.5.x.)");
+            });
+
             p(ctx,
               "All code snippets assume the following namespace "
               "declarations are in effect:");

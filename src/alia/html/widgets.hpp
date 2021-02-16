@@ -65,6 +65,8 @@ ALIA_HTML_DEFINE_TEXT_ELEMENT_INTERFACE(ins)
 ALIA_HTML_DEFINE_TEXT_ELEMENT_INTERFACE(sub)
 ALIA_HTML_DEFINE_TEXT_ELEMENT_INTERFACE(sup)
 ALIA_HTML_DEFINE_TEXT_ELEMENT_INTERFACE(label)
+ALIA_HTML_DEFINE_TEXT_ELEMENT_INTERFACE(th)
+ALIA_HTML_DEFINE_TEXT_ELEMENT_INTERFACE(td)
 
 // INPUTS
 
@@ -165,6 +167,21 @@ link(html::context ctx, Text text, Href href)
 element_handle
 checkbox(html::context ctx, duplex<bool> value);
 
+// LEAF ELEMENTS
+
+#define ALIA_HTML_DEFINE_LEAF_ELEMENT_INTERFACE(name)                         \
+    inline element_handle name(context ctx)                                   \
+    {                                                                         \
+        return element(ctx, #name);                                           \
+    }                                                                         \
+    template<class Classes>                                                   \
+    inline element_handle name(context ctx, Classes classes)                  \
+    {                                                                         \
+        return element(ctx, #name).attr("class", classes);                    \
+    }
+
+ALIA_HTML_DEFINE_LEAF_ELEMENT_INTERFACE(a)
+
 // CONTAINERS
 
 #define ALIA_HTML_DEFINE_CONTAINER_ELEMENT_INTERFACE(name)                    \
@@ -194,6 +211,9 @@ ALIA_HTML_DEFINE_CONTAINER_ELEMENT_INTERFACE(aside)
 ALIA_HTML_DEFINE_CONTAINER_ELEMENT_INTERFACE(ul)
 ALIA_HTML_DEFINE_CONTAINER_ELEMENT_INTERFACE(ol)
 ALIA_HTML_DEFINE_CONTAINER_ELEMENT_INTERFACE(li)
+ALIA_HTML_DEFINE_CONTAINER_ELEMENT_INTERFACE(table)
+ALIA_HTML_DEFINE_CONTAINER_ELEMENT_INTERFACE(thead)
+ALIA_HTML_DEFINE_CONTAINER_ELEMENT_INTERFACE(tr)
 
 // div as an RAII container
 struct scoped_div : scoped_element_base<scoped_div>
