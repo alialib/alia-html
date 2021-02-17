@@ -142,11 +142,13 @@ serialize(Archive& archive, app_state& state)
 }
 
 std::string
-app_state_to_json(app_state state)
+app_state_to_json(app_state const& state)
 {
     std::ostringstream stream;
-    cereal::JSONOutputArchive archive(stream);
-    archive(state);
+    {
+        cereal::JSONOutputArchive archive(stream);
+        archive(state);
+    }
     return stream.str();
 }
 
@@ -156,9 +158,11 @@ json_to_app_state(std::string json)
     try
     {
         std::istringstream stream(std::move(json));
-        cereal::JSONInputArchive archive(stream);
         app_state state;
-        archive(state);
+        {
+            cereal::JSONInputArchive archive(stream);
+            archive(state);
+        }
         return state;
     }
     catch (...)

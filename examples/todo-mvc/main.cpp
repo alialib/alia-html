@@ -60,9 +60,9 @@ todo_list_ui(app_context ctx)
                             input(ctx, new_title)
                                 .class_("edit")
                                 .on_init([](auto& self) { focus(self); })
-                                .on("blur", save)
-                                .on_enter(save)
-                                .on_escape(editing <<= false);
+                                //.on("blur", save)
+                                .on_enter(save);
+                            //.on_escape(editing <<= false);
                         }
                         alia_else
                         {
@@ -108,12 +108,11 @@ new_todo_ui(app_context ctx)
             // - Check that it's not empty. (Abort if it is.)
             // - Invoke 'add_todo' to add it to our app's state.
             // - Reset new_todo to an empty string.
-            new_todo <<= "");
-    // (actions::apply(
-    //      add_todo,
-    //      get<app_state_tag>(ctx),
-    //      hide_if_empty(apply(ctx, trim, new_todo))),
-    //  new_todo <<= ""));
+            (actions::apply(
+                 add_todo,
+                 get<app_state_tag>(ctx),
+                 hide_if_empty(apply(ctx, trim, new_todo))),
+             new_todo <<= ""));
 }
 
 void
@@ -186,18 +185,17 @@ root_ui(html::context ctx)
         = duplex_apply(ctx, json_to_app_state, app_state_to_json, json_state);
     // And finally, add a default value (of default-initialized state) for when
     // the raw JSON doesn't exist yet.
-    // auto state = add_default(
-    //     native_state, lambda_constant([&] { return app_state(); }));
-
-    auto state = get_state(ctx, lambda_constant([&] { return app_state(); }));
+    auto state = add_default(
+        native_state, lambda_constant([&] { return app_state(); }));
 
     // Parse the location hash to determine the active filter.
     auto filter = apply(ctx, hash_to_filter, get_location_hash(ctx));
 
-    // Add these two signals to the alia/HTML context to create our app
-    // context.
-    with_extended_context<app_state_tag>(ctx, state, [&](auto ctx) {
-        with_extended_context<view_filter_tag>(ctx, filter, [&](auto ctx) {
+    // Add both signals to the alia/HTML context to create our app context.
+    duplex<app_state> my_state = state;
+    readable<item_filter> my_filter = filter;
+    with_extended_context<app_state_tag>(ctx, my_state, [&](auto ctx) {
+        with_extended_context<view_filter_tag>(ctx, my_filter, [&](auto ctx) {
             // Root the app UI in the HTML DOM tree.
             // Our app's UI will be placed at the placeholder HTML element
             // with the ID "app-content".

@@ -140,6 +140,11 @@ add_demo(bootstrap-demo demos/bootstrap)
 add_demo(routing-demo demos/routing)
 add_demo(io-demos demos/io)
 add_demo(elements-demo demos/elements)
-add_demo(todo-mvc demos/todo-mvc)
+
+# Add the examples.
+add_example(todo-mvc examples/todo-mvc)
 target_include_directories(todo-mvc PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/external/cereal/include)
+
+include_directories(
     ${CMAKE_CURRENT_SOURCE_DIR}/external/cereal/include)
