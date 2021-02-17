@@ -11,14 +11,13 @@ ALIA_DEFINE_TAGGED_TYPE(view_filter_tag, readable<item_filter>)
 typedef extend_context_type_t<html::context, app_state_tag, view_filter_tag>
     app_context;
 
-// This component function is responsible for the UI for adding a new TODO
-// item to the list.
+// Do the UI for adding a new TODO item to the list.
 void
 new_todo_ui(app_context ctx)
 {
     // Get some component-local state to store the title of the new TODO.
     auto new_todo = get_state(ctx, std::string());
-
+    // And present an input for editing it.
     input(ctx, new_todo)
         .class_("new-todo")
         .placeholder("What needs to be done?")
@@ -32,13 +31,77 @@ new_todo_ui(app_context ctx)
             (actions::apply(
                  add_todo,
                  get<app_state_tag>(ctx),
-                 hide_if_empty(apply(ctx, trim, new_todo))),
+                 hide_if_empty(lazy_apply(trim, new_todo))),
              new_todo <<= ""));
 }
 
+// Do the UI for a single TODO item.
 void
 todo_item_ui(app_context ctx, size_t index, duplex<todo_item> todo)
 {
+    // The UI for a single item has two modes: editing and viewing, so we need
+    // a bit of state to track which we're in.
+    auto editing = get_transient_state(ctx, false);
+
+    li(ctx)
+        .class_("completed", alia_field(todo, completed))
+        .class_("editing", editing)
+        .children([&] {
+            alia_if(editing)
+            {
+                // In editing mode, we need to track the new value for the
+                // title of the item. (The edit is cancellable, so we don't
+                // want to write it back until the edit is confirmed.)
+                auto new_title
+                    = get_transient_state(ctx, alia_field(todo, title));
+
+                // Define the action that we'll perform to save the edit and
+                // transition out of editing mode.
+                auto save
+                    = (alia_field(todo, title) <<= new_title,
+                       editing <<= false);
+
+                input(ctx, new_title)
+                    .class_("edit")
+                    .on_init([](auto& self) { focus(self); })
+                    // If the edit control loses focus or Enter is pressed,
+                    // save the edits.
+                    //.on("blur", save)
+                    .on_enter(save)
+                    // Escape discards the new title and exits editing mode.
+                    .on_escape(editing <<= false);
+            }
+            alia_else
+            {
+                // In viewing mode, we need a "view" div to contain our viewing
+                // elements.
+                auto view = div(ctx, "view");
+                view.children([&] {
+                    // This checkbox is hooked up to the 'completed' field of
+                    // the TODO item.
+                    checkbox(ctx, alia_field(todo, completed))
+                        .class_("toggle");
+
+                    label(ctx, alia_field(todo, title))
+                        // Double clicking on the title enters editing mode.
+                        .on("dblclick", editing <<= true);
+
+                    // If the mouse is hovered over this item view, show a
+                    // button that will erase it from the list.
+                    alia_if(mouse_inside(ctx, view))
+                    {
+                        button(
+                            ctx,
+                            actions::erase_index(
+                                alia_field(get<app_state_tag>(ctx), todos),
+                                index))
+                            .class_("destroy");
+                    }
+                    alia_end
+                });
+            }
+            alia_end
+        });
 }
 
 // Tell alia that our TODO items can be stably identified by their 'id' member.
@@ -48,79 +111,42 @@ get_alia_id(todo_item const& item)
     return make_id(item.id);
 }
 
+// Do the UI for the list of TODO items.
 void
 todo_list_ui(app_context ctx)
 {
     auto todos = alia_field(get<app_state_tag>(ctx), todos);
-
     ul(ctx, "todo-list", [&] {
         for_each(ctx, todos, [&](size_t index, auto todo) {
             auto matches
                 = apply(ctx, matches_filter, get<view_filter_tag>(ctx), todo);
             alia_if(matches)
             {
-                auto editing = get_transient_state(ctx, false);
-                li(ctx)
-                    .class_("completed", alia_field(todo, completed))
-                    .class_("editing", editing)
-                    .children([&] {
-                        alia_if(editing)
-                        {
-                            auto new_title = get_transient_state(
-                                ctx, alia_field(todo, title));
-                            auto save
-                                = (alia_field(todo, title) <<= new_title,
-                                   editing <<= false);
-                            input(ctx, new_title)
-                                .class_("edit")
-                                .on_init([](auto& self) { focus(self); })
-                                //.on("blur", save)
-                                .on_enter(save);
-                            //.on_escape(editing <<= false);
-                        }
-                        alia_else
-                        {
-                            auto view = div(ctx, "view");
-                            view.children([&] {
-                                checkbox(ctx, alia_field(todo, completed))
-                                    .class_("toggle");
-                                label(ctx, alia_field(todo, title))
-                                    .on("dblclick", editing <<= true);
-                                alia_if(mouse_inside(ctx, view))
-                                {
-                                    button(
-                                        ctx,
-                                        actions::erase_index(todos, index))
-                                        .class_("destroy");
-                                }
-                                alia_end
-                            });
-                        }
-                        alia_end
-                    });
+                todo_item_ui(ctx, index, todo);
             }
             alia_end
         });
     });
 }
 
+// Do the UI for selecting an item filter.
 void
 filter_selection_ui(app_context ctx)
 {
     auto filter = get<view_filter_tag>(ctx);
     ul(ctx, "filters", [&] {
-        li(ctx).children([&] {
-            link(ctx, "All", "#/")
-                .class_("selected", filter == item_filter::ALL);
-        });
-        li(ctx).children([&] {
-            link(ctx, "Active", "#/active")
-                .class_("selected", filter == item_filter::ACTIVE);
-        });
-        li(ctx).children([&] {
-            link(ctx, "Completed", "#/completed")
-                .class_("selected", filter == item_filter::COMPLETED);
-        });
+        // In the interests of not repeating ourselves, we define a lambda here
+        // that generates the UI for a single filter link.
+        // (We could also split this out into a separate function.)
+        auto filter_link = [&](auto label, auto href, auto value) {
+            li(ctx).children([&] {
+                link(ctx, label, href).class_("selected", filter == value);
+            });
+        };
+        // Invoke filter_link for each of our filters.
+        filter_link("All", "#/", item_filter::ALL);
+        filter_link("Active", "#/active", item_filter::ACTIVE);
+        filter_link("Completed", "#/completed", item_filter::COMPLETED);
     });
 }
 
