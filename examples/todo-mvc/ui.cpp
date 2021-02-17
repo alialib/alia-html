@@ -11,11 +11,29 @@ ALIA_DEFINE_TAGGED_TYPE(view_filter_tag, readable<item_filter>)
 typedef extend_context_type_t<html::context, app_state_tag, view_filter_tag>
     app_context;
 
-// Tell alia that our TODO items can be stably identified by their 'id' member.
-auto
-get_alia_id(todo_item const& item)
+// This component function is responsible for the UI for adding a new TODO
+// item to the list.
+void
+new_todo_ui(app_context ctx)
 {
-    return make_id(item.id);
+    // Get some component-local state to store the title of the new TODO.
+    auto new_todo = get_state(ctx, std::string());
+
+    input(ctx, new_todo)
+        .class_("new-todo")
+        .placeholder("What needs to be done?")
+        .autofocus()
+        .on_enter(
+            // In response to the enter key, we need to:
+            // - Trim the new_todo string.
+            // - Check that it's not empty. (Abort if it is.)
+            // - Invoke 'add_todo' to add it to our app's state.
+            // - Reset new_todo to an empty string.
+            (actions::apply(
+                 add_todo,
+                 get<app_state_tag>(ctx),
+                 hide_if_empty(apply(ctx, trim, new_todo))),
+             new_todo <<= ""));
 }
 
 void
@@ -23,15 +41,11 @@ todo_item_ui(app_context ctx, size_t index, duplex<todo_item> todo)
 {
 }
 
-// Translate location hash strings to our item_filter enum type.
-item_filter
-hash_to_filter(std::string const& hash)
+// Tell alia that our TODO items can be stably identified by their 'id' member.
+auto
+get_alia_id(todo_item const& item)
 {
-    if (hash == "#/active")
-        return item_filter::ACTIVE;
-    if (hash == "#/completed")
-        return item_filter::COMPLETED;
-    return item_filter::ALL;
+    return make_id(item.id);
 }
 
 void
@@ -90,36 +104,30 @@ todo_list_ui(app_context ctx)
     });
 }
 
-// This component function is responsible for the UI for adding a new TODO
-// item to the list.
 void
-new_todo_ui(app_context ctx)
+filter_selection_ui(app_context ctx)
 {
-    // Get some component-local state to store the title of the new TODO.
-    auto new_todo = get_state(ctx, std::string());
-
-    input(ctx, new_todo)
-        .class_("new-todo")
-        .placeholder("What needs to be done?")
-        .autofocus()
-        .on_enter(
-            // In response to the enter key, we need to:
-            // - Trim the new_todo string.
-            // - Check that it's not empty. (Abort if it is.)
-            // - Invoke 'add_todo' to add it to our app's state.
-            // - Reset new_todo to an empty string.
-            (actions::apply(
-                 add_todo,
-                 get<app_state_tag>(ctx),
-                 hide_if_empty(apply(ctx, trim, new_todo))),
-             new_todo <<= ""));
+    auto filter = get<view_filter_tag>(ctx);
+    ul(ctx, "filters", [&] {
+        li(ctx).children([&] {
+            link(ctx, "All", "#/")
+                .class_("selected", filter == item_filter::ALL);
+        });
+        li(ctx).children([&] {
+            link(ctx, "Active", "#/active")
+                .class_("selected", filter == item_filter::ACTIVE);
+        });
+        li(ctx).children([&] {
+            link(ctx, "Completed", "#/completed")
+                .class_("selected", filter == item_filter::COMPLETED);
+        });
+    });
 }
 
 void
 app_ui(app_context ctx)
 {
     auto todos = alia_field(get<app_state_tag>(ctx), todos);
-    auto filter = get<view_filter_tag>(ctx);
 
     header(ctx, "header", [&] {
         h1(ctx, "todos");
@@ -150,20 +158,7 @@ app_ui(app_context ctx)
                     ctx,
                     conditional(items_left != 1, " items left", " item left"));
             });
-            ul(ctx, "filters", [&] {
-                li(ctx).children([&] {
-                    link(ctx, "All", "#/")
-                        .class_("selected", filter == item_filter::ALL);
-                });
-                li(ctx).children([&] {
-                    link(ctx, "Active", "#/active")
-                        .class_("selected", filter == item_filter::ACTIVE);
-                });
-                li(ctx).children([&] {
-                    link(ctx, "Completed", "#/completed")
-                        .class_("selected", filter == item_filter::COMPLETED);
-                });
-            });
+            filter_selection_ui(ctx);
 
             button(
                 ctx, "Clear completed", actions::apply(clear_completed, todos))
@@ -171,6 +166,17 @@ app_ui(app_context ctx)
         });
     }
     alia_end
+}
+
+// Translate a browser location hash string to our item_filter enum type.
+item_filter
+hash_to_filter(std::string const& hash)
+{
+    if (hash == "#/active")
+        return item_filter::ACTIVE;
+    if (hash == "#/completed")
+        return item_filter::COMPLETED;
+    return item_filter::ALL;
 }
 
 void
@@ -185,17 +191,14 @@ root_ui(html::context ctx)
         = duplex_apply(ctx, json_to_app_state, app_state_to_json, json_state);
     // And finally, add a default value (of default-initialized state) for when
     // the raw JSON doesn't exist yet.
-    auto state = add_default(
-        native_state, lambda_constant([&] { return app_state(); }));
+    auto state = add_default(native_state, default_initialized<app_state>());
 
     // Parse the location hash to determine the active filter.
     auto filter = apply(ctx, hash_to_filter, get_location_hash(ctx));
 
     // Add both signals to the alia/HTML context to create our app context.
-    duplex<app_state> my_state = state;
-    readable<item_filter> my_filter = filter;
-    with_extended_context<app_state_tag>(ctx, my_state, [&](auto ctx) {
-        with_extended_context<view_filter_tag>(ctx, my_filter, [&](auto ctx) {
+    with_extended_context<app_state_tag>(ctx, state, [&](auto ctx) {
+        with_extended_context<view_filter_tag>(ctx, filter, [&](auto ctx) {
             // Root the app UI in the HTML DOM tree.
             // Our app's UI will be placed at the placeholder HTML element
             // with the ID "app-content".
@@ -204,6 +207,7 @@ root_ui(html::context ctx)
     });
 }
 
+// Our main() function just initializes our UI and connects it to the browser.
 int
 main()
 {
