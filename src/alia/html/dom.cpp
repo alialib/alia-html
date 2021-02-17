@@ -259,17 +259,17 @@ install_element_callback(
     auto* system = &get<alia::system_tag>(ctx);
     callback.function = [=](emscripten::val v) {
         dom_event event(v);
-        //#ifdef ALIA_HTML_LOGGING
+#ifdef ALIA_HTML_LOGGING
         auto start = std::chrono::high_resolution_clock::now();
-        //#endif
+#endif
         dispatch_targeted_event(*system, event, external_id);
-        //#ifdef ALIA_HTML_LOGGING
+#ifdef ALIA_HTML_LOGGING
         auto elapsed_ms
             = std::chrono::duration_cast<std::chrono::microseconds>(
                   std::chrono::high_resolution_clock::now() - start)
                   .count();
         std::cout << "event time: " << elapsed_ms << " µs" << std::endl;
-        //#endif
+#endif
         return true;
     };
 

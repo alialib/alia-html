@@ -129,6 +129,23 @@ todo_list_ui(app_context ctx)
     });
 }
 
+// Do the checkbox that toggles the state of all TODO items.
+void
+toggle_all_checkbox(app_context ctx, readable<bool> all_complete)
+{
+    element(ctx, "input")
+        .attr("id", "toggle-all")
+        .attr("class", "toggle-all")
+        .attr("type", "checkbox")
+        .prop("checked", !all_complete)
+        .on("change",
+            actions::apply(
+                set_completed_flags,
+                alia_field(get<app_state_tag>(ctx), todos),
+                !all_complete));
+    label(ctx, "Mark all as complete").attr("for", "toggle-all");
+}
+
 // Do the UI for selecting an item filter.
 void
 filter_selection_ui(app_context ctx)
@@ -150,20 +167,6 @@ filter_selection_ui(app_context ctx)
     });
 }
 
-// Do the checkbox that toggles the state of all TODO items.
-void
-toggle_all_checkbox(app_context ctx, readable<bool> all_complete)
-{
-    element(ctx, "input")
-        .attr("id", "toggle-all")
-        .attr("class", "toggle-all")
-        .attr("type", "checkbox")
-        .prop("checked", !all_complete)
-        .on("change",
-            actions::apply(set_completed_flags, todos, !all_complete));
-    label(ctx, "Mark all as complete").attr("for", "toggle-all");
-}
-
 // Do the top-level UI for our app content.
 void
 app_ui(app_context ctx)
@@ -175,14 +178,13 @@ app_ui(app_context ctx)
         new_todo_ui(ctx);
     });
 
-    // None of the following should be shown if the TODO list is empty.
+    // None of the following should be shown when the TODO list is empty.
     alia_if(!is_empty(todos))
     {
         auto items_left = apply(ctx, incomplete_count, todos);
-        auto all_complete = items_left == size(todos);
 
         section(ctx, "main", [&] {
-            toggle_all_checkbox(ctx);
+            toggle_all_checkbox(ctx, items_left == size(todos));
             todo_list_ui(ctx);
         });
 
