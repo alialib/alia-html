@@ -66,7 +66,7 @@ todo_item_ui(app_context ctx, size_t index, duplex<todo_item> todo)
                     .on_init([](auto& self) { focus(self); })
                     // If the edit control loses focus or Enter is pressed,
                     // save the edits.
-                    //.on("blur", save)
+                    .on("blur", save)
                     .on_enter(save)
                     // Escape discards the new title and exits editing mode.
                     .on_escape(editing <<= false);
@@ -150,6 +150,21 @@ filter_selection_ui(app_context ctx)
     });
 }
 
+// Do the checkbox that toggles the state of all TODO items.
+void
+toggle_all_checkbox(app_context ctx, readable<bool> all_complete)
+{
+    element(ctx, "input")
+        .attr("id", "toggle-all")
+        .attr("class", "toggle-all")
+        .attr("type", "checkbox")
+        .prop("checked", !all_complete)
+        .on("change",
+            actions::apply(set_completed_flags, todos, !all_complete));
+    label(ctx, "Mark all as complete").attr("for", "toggle-all");
+}
+
+// Do the top-level UI for our app content.
 void
 app_ui(app_context ctx)
 {
@@ -160,32 +175,29 @@ app_ui(app_context ctx)
         new_todo_ui(ctx);
     });
 
+    // None of the following should be shown if the TODO list is empty.
     alia_if(!is_empty(todos))
     {
         auto items_left = apply(ctx, incomplete_count, todos);
         auto all_complete = items_left == size(todos);
 
         section(ctx, "main", [&] {
-            element(ctx, "input")
-                .attr("id", "toggle-all")
-                .attr("class", "toggle-all")
-                .attr("type", "checkbox")
-                .prop("checked", !all_complete)
-                .on("change",
-                    actions::apply(set_completed_flags, todos, !all_complete));
-            label(ctx, "Mark all as complete").attr("for", "toggle-all");
+            toggle_all_checkbox(ctx);
             todo_list_ui(ctx);
         });
 
         footer(ctx, "footer", [&] {
+            // Display the count of incomplete items.
             span(ctx, "todo-count", [&] {
                 strong(ctx, as_text(ctx, items_left));
                 text(
                     ctx,
                     conditional(items_left != 1, " items left", " item left"));
             });
+
             filter_selection_ui(ctx);
 
+            // Add a button to clear all completed items.
             button(
                 ctx, "Clear completed", actions::apply(clear_completed, todos))
                 .class_("clear-completed");
@@ -205,6 +217,7 @@ hash_to_filter(std::string const& hash)
     return item_filter::ALL;
 }
 
+// root_ui() provides the machinery to tie the app UI into the browser.
 void
 root_ui(html::context ctx)
 {
@@ -227,13 +240,13 @@ root_ui(html::context ctx)
         with_extended_context<view_filter_tag>(ctx, filter, [&](auto ctx) {
             // Root the app UI in the HTML DOM tree.
             // Our app's UI will be placed at the placeholder HTML element
-            // with the ID "app-content".
+            // with the ID "app-content". (See index.html.)
             placeholder_root(ctx, "app-content", [&] { app_ui(ctx); });
         });
     });
 }
 
-// Our main() function just initializes our UI and connects it to the browser.
+// Our main() just initializes our UI and lets it do its thing.
 int
 main()
 {

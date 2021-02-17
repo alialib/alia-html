@@ -84,16 +84,21 @@ struct dom_event : targeted_event
     emscripten::val event;
 };
 
-struct callback_data
+struct element_callback : noncopyable
 {
+    ~element_callback();
+
     component_identity identity;
+    int asmdom_id = 0;
+    std::string event;
+    std::function<void(emscripten::val)> function;
 };
 
 void
 install_element_callback(
     context ctx,
     element_object& object,
-    callback_data& data,
+    element_callback& callback,
     char const* event_type);
 
 struct window_callback : noncopyable
@@ -279,7 +284,8 @@ struct element_handle_base
     Derived&
     callback(char const* event_type, Function&& fn)
     {
-        auto& data = get_cached_data<detail::callback_data>(this->context());
+        auto& data
+            = get_cached_data<detail::element_callback>(this->context());
         if (this->initializing())
         {
             detail::install_element_callback(
